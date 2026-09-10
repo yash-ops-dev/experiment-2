@@ -1,0 +1,126 @@
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+
+const app = express();
+const PORT = 3000;
+
+// EJS templating engine
+app.set("view engine", "ejs");
+
+// Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Static files
+app.use(express.static("public"));
+
+// JSON file path
+const filePath = path.join(__dirname, "data", "users.json");
+
+// Make sure data folder/file exists
+if (!fs.existsSync(path.join(__dirname, "data"))) {
+    fs.mkdirSync(path.join(__dirname, "data"));
+}
+
+if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, "[]");
+}
+
+// Read users from JSON file
+function getUsers() {
+    const data = fs.readFileSync(filePath, "utf-8");
+
+    if (!data.trim()) {
+        return [];
+    }
+
+    return JSON.parse(data);
+}
+
+// Save users to JSON file
+function saveUsers(users) {
+    fs.writeFileSync(
+        filePath,
+        JSON.stringify(users, null, 2)
+    );
+}
+
+// Home page
+app.get("/", (req, res) => {
+    res.render("index", {
+        title: "FSD User Registration",
+        message: null
+    });
+});
+
+// Handle form submission
+app.post("/register", (req, res) => {
+    const { name, email, age } = req.body;
+
+    // Basic validation
+    if (!name || !email || !age) {
+        return res.render("index", {
+            title: "FSD User Registration",
+            message: "Please fill in all fields."
+        });
+    }
+
+    const users = getUsers();
+
+    // Check duplicate email
+    const existingUser = users.find(
+        user => user.email === email
+    );
+
+    if (existingUser) {
+        return res.render("index", {
+            title: "FSD User Registration",
+            message: "Email already registered."
+        });
+    }
+
+    // Create new user
+    const newUser = {
+        id: Date.now(),
+        name: name,
+        email: email,
+        age: age
+    };
+
+    users.push(newUser);
+
+    // Save user
+    saveUsers(users);
+
+    res.redirect("/users");
+});
+
+// Display users
+app.get("/users", (req, res) => {
+    const users = getUsers();
+
+    res.render("users", {
+        title: "Users",
+        users: users
+    });
+});
+
+// Delete user
+app.post("/delete/:id", (req, res) => {
+    const id = Number(req.params.id);
+
+    let users = getUsers();
+
+    users = users.filter(user => user.id !== id);
+
+    saveUsers(users);
+
+    res.redirect("/users");
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+});
+
